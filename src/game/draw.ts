@@ -5,7 +5,7 @@
 import { PaintStyle, Skia, StrokeCap, TileMode } from '@shopify/react-native-skia';
 import type { SkCanvas, SkFont, SkPaint } from '@shopify/react-native-skia';
 
-import { COLORS, DAY_CYCLE, GROUND_Y, SNAIL_X, WORLD_HEIGHT } from './constants';
+import { COLORS, DAY_CYCLE, GROUND_Y, WORLD_HEIGHT } from './constants';
 import { snailAngle, type GameState, type Obstacle, type Particle } from './engine';
 import type { HatId, SkinLook } from './skins';
 
@@ -793,7 +793,7 @@ export function drawGame(
   drawBackground(c, p, w, s.distance);
 
   // Flag at the player's record
-  const flagX = SNAIL_X + (s.bestDistance - s.distance);
+  const flagX = s.snailX + (s.bestDistance - s.distance);
   const showFlag = s.bestDistance > 0 && flagX > -12 && flagX < w + 12;
   if (showFlag) drawBestFlag(c, p, flagX);
 
@@ -820,7 +820,7 @@ export function drawGame(
   } else if (s.phase === 'playing') {
     flame = s.holding ? 1 : 0.15;
   }
-  drawSnail(c, p, SNAIL_X, y, snailAngle(s), s.time, flame, look, s.phase === 'crashing' || s.phase === 'over');
+  drawSnail(c, p, s.snailX, y, snailAngle(s), s.time, flame, look, s.phase === 'crashing' || s.phase === 'over');
 
   for (let i = 0; i < s.particles.length; i++) {
     if (s.particles[i].kind !== 'puff') drawParticle(c, p, s.particles[i]);

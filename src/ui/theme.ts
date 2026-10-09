@@ -23,3 +23,11 @@ export const UI = {
   cardSoft: '#F3F8FF',
   backdrop: 'rgba(43,58,85,0.5)',
 };
+
+/**
+ * Menus are designed for screens at least ~380pt tall (in landscape).
+ * On smaller phones they are shrunk a little so nothing gets cut off.
+ */
+export function menuScale(height: number) {
+  return Math.min(1, height / 380);
+}

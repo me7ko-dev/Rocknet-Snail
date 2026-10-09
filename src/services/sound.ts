@@ -81,8 +81,15 @@ export const sound = {
     safe(() => {
       const player = pool.players[pool.next];
       pool.next = (pool.next + 1) % pool.players.length;
-      player.seekTo(0).catch(() => {});
-      player.play();
+      if (player.currentTime > 0) {
+        // rewind first (on iOS seeking is asynchronous), then play
+        player
+          .seekTo(0)
+          .then(() => player.play())
+          .catch(() => {});
+      } else {
+        player.play();
+      }
     });
   },
 
@@ -96,7 +103,10 @@ export const sound = {
   },
   setThrust(on: boolean) {
     safe(() => {
-      if (thrust) thrust.volume = on && effectsOn && appActive ? THRUST_VOLUME : 0;
+      if (!thrust) return;
+      const loud = on && effectsOn && appActive;
+      thrust.volume = loud ? THRUST_VOLUME : 0;
+      if (loud && !thrust.playing) thrust.play();
     });
   },
   stopThrust() {

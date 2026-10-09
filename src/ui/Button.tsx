@@ -51,16 +51,16 @@ export function Button({ label, onPress, variant = 'red', size = 'medium', icon,
   );
 }
 
-type RoundProps = { icon: IconName; onPress: () => void; label: string; variant?: Variant; size?: number };
+type RoundProps = { icon: IconName; onPress: () => void; label: string; variant?: Variant; size?: number; hitSlop?: number };
 
 /** Round button with only an icon (pause, settings, back). */
-export function RoundButton({ icon, onPress, label, variant = 'blue', size = 48 }: RoundProps) {
+export function RoundButton({ icon, onPress, label, variant = 'blue', size = 48, hitSlop = 10 }: RoundProps) {
   const [face, edge] = COLORS[variant];
   return (
     <Pressable
       accessibilityRole="button"
       accessibilityLabel={label}
-      hitSlop={10}
+      hitSlop={hitSlop}
       onPress={() => {
         sound.play('tap');
         onPress();

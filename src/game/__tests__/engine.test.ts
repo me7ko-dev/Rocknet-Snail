@@ -113,6 +113,20 @@ describe('hits and lettuce', () => {
     expect(events.filter((e) => e === 'best')).toHaveLength(1);
   });
 
+  it('only celebrates when the score is really higher than the record', () => {
+    const s = emptyRun(10);
+    run(s, 0.05, (st) => {
+      if (st.events.includes('best')) expect(st.score).toBeGreaterThan(10);
+    });
+    let celebratedAt = -1;
+    for (let t = 0; t < 5 && celebratedAt < 0; t += DT) {
+      stepGame(s, DT);
+      if (s.events.includes('best')) celebratedAt = s.score;
+      s.events.length = 0;
+    }
+    expect(celebratedAt).toBe(11);
+  });
+
   it('does not celebrate on the very first run', () => {
     const s = emptyRun(0);
     expect(run(s, 5)).not.toContain('best');
@@ -129,11 +143,11 @@ describe('hits and lettuce', () => {
 
   it('hoses hit along their whole length, but not above the nozzle', () => {
     const groundHose = obstacle({ kind: 'hose', x: SNAIL_X, y: 60, size: GROUND_Y - 60 });
-    expect(collides(80, groundHose)).toBe(true);
-    expect(collides(40, groundHose)).toBe(false);
+    expect(collides(SNAIL_X, 80, groundHose)).toBe(true);
+    expect(collides(SNAIL_X, 40, groundHose)).toBe(false);
     const hangingHose = obstacle({ kind: 'hose', x: SNAIL_X, y: 30, size: 30, top: true });
-    expect(collides(25, hangingHose)).toBe(true);
-    expect(collides(50, hangingHose)).toBe(false);
+    expect(collides(SNAIL_X, 25, hangingHose)).toBe(true);
+    expect(collides(SNAIL_X, 50, hangingHose)).toBe(false);
   });
 });
 
@@ -164,6 +178,50 @@ describe('long random runs', () => {
     }
     // the bot is not great, but every run should get somewhere
     expect(Math.min(...scores)).toBeGreaterThan(20);
+  });
+
+  it('never puts two hoses in a row without a common way through', () => {
+    // Heights where the snail's body would not touch any hose of a pattern,
+    // found by asking the real hit test (independent of how spawning computes it)
+    const safeHeights = (hoses: Obstacle[]) => {
+      const ok: number[] = [];
+      for (let y = 0; y <= GROUND_Y; y += 0.5) {
+        const hit = hoses.some((o) => [0, -4, -8, -12].some((dx) => collides(o.x + dx, y, o)));
+        if (!hit) ok.push(y);
+      }
+      return ok;
+    };
+    let pairs = 0;
+    for (let i = 0; i < 40; i++) {
+      const s = emptyRun();
+      s.speed = MAX_SPEED;
+      s.spawnIn = 0;
+      let prev: number[] | null = null;
+      const seen = new Set<Obstacle>();
+      for (let k = 0; k < 3000; k++) {
+        stepGame(s, DT);
+        s.events.length = 0;
+        s.phase = 'playing';
+        s.snailY = -100; // keep the test snail out of the way
+        const fresh = s.obstacles.filter((o) => !seen.has(o));
+        fresh.forEach((o) => seen.add(o));
+        if (fresh.length === 0) continue;
+        // a new pattern appeared at the right edge
+        if (fresh.every((o) => o.kind === 'hose')) {
+          const safe = safeHeights(fresh);
+          expect(safe.length).toBeGreaterThan(10);
+          if (prev) {
+            const common = safe.filter((y) => prev!.includes(y));
+            expect(common.length).toBeGreaterThanOrEqual(8); // at least 4 units in common
+            pairs++;
+          }
+          prev = safe;
+        } else {
+          prev = null;
+        }
+      }
+    }
+    expect(pairs).toBeGreaterThan(5);
   });
 
   it('always leaves a passable opening in hose gates', () => {

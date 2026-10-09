@@ -55,7 +55,7 @@
       [
         "expo-audio",
         {
-          "microphonePermission": "Rocket Snail never records sound. This text is only required by the sound library the game uses.",
+          "microphonePermission": false,
           "recordAudioAndroid": false,
           "enableBackgroundPlayback": false
         }

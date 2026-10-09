@@ -1,7 +1,15 @@
 import Constants from 'expo-constants';
 import { useEffect, useState } from 'react';
-import { BackHandler, Pressable, StyleSheet, View } from 'react-native';
-import Animated, { Easing, FadeIn, ZoomIn, useAnimatedStyle, useSharedValue, withRepeat, withTiming } from 'react-native-reanimated';
+import { BackHandler, Pressable, StyleSheet, View, useWindowDimensions } from 'react-native';
+import Animated, {
+  Easing,
+  FadeIn,
+  ZoomIn,
+  useAnimatedStyle,
+  useSharedValue,
+  withRepeat,
+  withTiming,
+} from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { MenuBackdrop } from '../game/MenuBackdrop';
@@ -14,7 +22,7 @@ import { Button, RoundButton } from '../ui/Button';
 import { LettuceIcon } from '../ui/LettuceIcon';
 import { OutlinedTitle } from '../ui/OutlinedTitle';
 import { Toggle } from '../ui/Toggle';
-import { UI } from '../ui/theme';
+import { UI, menuScale } from '../ui/theme';
 
 type Props = {
   save: SaveData;
@@ -26,13 +34,16 @@ type Props = {
 
 export function StartScreen({ save, t, onPlay, onShop, onChange }: Props) {
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const scale = { transform: [{ scale: menuScale(useWindowDimensions().height) }] };
 
   // The title gently bobs up and down
   const bob = useSharedValue(0);
   useEffect(() => {
     bob.set(withRepeat(withTiming(1, { duration: 1400, easing: Easing.inOut(Easing.sin) }), -1, true));
   }, [bob]);
-  const titleStyle = useAnimatedStyle(() => ({ transform: [{ translateY: bob.value * -6 }, { rotate: `${(bob.value - 0.5) * 3}deg` }] }));
+  const titleStyle = useAnimatedStyle(() => ({
+    transform: [{ translateY: bob.value * -6 }, { rotate: `${(bob.value - 0.5) * 3}deg` }],
+  }));
 
   useEffect(() => {
     if (!settingsOpen) return;
@@ -64,7 +75,7 @@ export function StartScreen({ save, t, onPlay, onShop, onChange }: Props) {
           </View>
         </View>
 
-        <View style={styles.center}>
+        <View style={[styles.center, scale]}>
           <Animated.View style={titleStyle}>
             <OutlinedTitle text={t.title} size={56} />
           </Animated.View>
@@ -76,9 +87,7 @@ export function StartScreen({ save, t, onPlay, onShop, onChange }: Props) {
         </View>
       </SafeAreaView>
 
-      {settingsOpen && (
-        <SettingsPanel save={save} t={t} onChange={onChange} onClose={() => setSettingsOpen(false)} />
-      )}
+      {settingsOpen && <SettingsPanel save={save} t={t} onChange={onChange} onClose={() => setSettingsOpen(false)} />}
     </View>
   );
 }
@@ -86,61 +95,64 @@ export function StartScreen({ save, t, onPlay, onShop, onChange }: Props) {
 type SettingsProps = { save: SaveData; t: Strings; onChange: (change: Partial<SaveData>) => void; onClose: () => void };
 
 function SettingsPanel({ save, t, onChange, onClose }: SettingsProps) {
+  const scale = { transform: [{ scale: menuScale(useWindowDimensions().height) }] };
   const langs = Object.keys(LANGUAGES) as Lang[];
   const version = Constants.expoConfig?.version ?? '';
   return (
     <Animated.View entering={FadeIn.duration(150)} style={styles.overlay}>
       <Pressable style={StyleSheet.absoluteFill} onPress={onClose} accessibilityLabel={t.close} />
-      <Animated.View entering={ZoomIn.springify().damping(14)} style={styles.panel}>
-        <AppText weight="black" size={30} color={UI.blue} style={styles.panelTitle}>
-          {t.settings}
-        </AppText>
-        <View style={styles.panelBody}>
-          <View style={styles.column}>
-            <Toggle label={t.music} value={save.music} onChange={(music) => onChange({ music })} />
-            <Toggle label={t.sounds} value={save.sfx} onChange={(sfx) => onChange({ sfx })} />
-            <Toggle label={t.vibration} value={save.haptics} onChange={(haptics) => onChange({ haptics })} />
-          </View>
-          <View style={styles.column}>
-            <AppText size={20}>{t.language}</AppText>
-            <View style={styles.langRow}>
-              {langs.map((lang) => (
-                <Pressable
-                  key={lang}
-                  accessibilityRole="button"
-                  accessibilityState={{ selected: save.lang === lang }}
-                  onPress={() => {
-                    sound.play('tap');
-                    onChange({ lang });
-                  }}
-                  style={[styles.langButton, save.lang === lang && styles.langActive]}
-                >
-                  <AppText weight="black" size={16} color={save.lang === lang ? '#FFFFFF' : UI.inkSoft}>
-                    {LANGUAGE_NAMES[lang]}
-                  </AppText>
-                </Pressable>
-              ))}
-            </View>
-            <View style={styles.stats}>
-              <AppText size={15} color={UI.inkSoft}>
-                {t.runs}: {save.runs}
-              </AppText>
-              <AppText size={15} color={UI.inkSoft}>
-                {t.totalLettuce}: {save.totalLettuce}
-              </AppText>
-              <AppText size={15} color={UI.inkSoft}>
-                {t.best}: {save.best} {t.meters}
-              </AppText>
-            </View>
-          </View>
-        </View>
-        <View style={styles.panelFooter}>
-          <AppText size={12} color={UI.grey}>
-            Rocket Snail {version}
+      <View style={scale}>
+        <Animated.View entering={ZoomIn.springify().damping(14)} style={styles.panel}>
+          <AppText weight="black" size={30} color={UI.blue} style={styles.panelTitle}>
+            {t.settings}
           </AppText>
-          <Button size="medium" variant="blue" label={t.close} onPress={onClose} />
-        </View>
-      </Animated.View>
+          <View style={styles.panelBody}>
+            <View style={styles.column}>
+              <Toggle label={t.music} value={save.music} onChange={(music) => onChange({ music })} />
+              <Toggle label={t.sounds} value={save.sfx} onChange={(sfx) => onChange({ sfx })} />
+              <Toggle label={t.vibration} value={save.haptics} onChange={(haptics) => onChange({ haptics })} />
+            </View>
+            <View style={styles.column}>
+              <AppText size={20}>{t.language}</AppText>
+              <View style={styles.langRow}>
+                {langs.map((lang) => (
+                  <Pressable
+                    key={lang}
+                    accessibilityRole="button"
+                    accessibilityState={{ selected: save.lang === lang }}
+                    onPress={() => {
+                      sound.play('tap');
+                      onChange({ lang });
+                    }}
+                    style={[styles.langButton, save.lang === lang && styles.langActive]}
+                  >
+                    <AppText weight="black" size={16} color={save.lang === lang ? '#FFFFFF' : UI.inkSoft}>
+                      {LANGUAGE_NAMES[lang]}
+                    </AppText>
+                  </Pressable>
+                ))}
+              </View>
+              <View style={styles.stats}>
+                <AppText size={15} color={UI.inkSoft}>
+                  {t.runs}: {save.runs}
+                </AppText>
+                <AppText size={15} color={UI.inkSoft}>
+                  {t.totalLettuce}: {save.totalLettuce}
+                </AppText>
+                <AppText size={15} color={UI.inkSoft}>
+                  {t.best}: {save.best} {t.meters}
+                </AppText>
+              </View>
+            </View>
+          </View>
+          <View style={styles.panelFooter}>
+            <AppText size={12} color={UI.grey}>
+              Rocket Snail {version}
+            </AppText>
+            <Button size="medium" variant="blue" label={t.close} onPress={onClose} />
+          </View>
+        </Animated.View>
+      </View>
     </Animated.View>
   );
 }
