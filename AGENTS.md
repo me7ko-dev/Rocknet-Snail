@@ -39,3 +39,10 @@ Docs: https://docs.expo.dev/eas/index.md
 - If `ios/` and `android/` directories do not exist, they are generated (Continuous Native Generation). Never create or edit them by hand — configure native behavior in `app.json` and config plugins.
 - Expo Go only includes its bundled native modules. After adding a library with native code, the app needs a development build: `npx expo run:ios|android` locally, or `eas build --profile development`.
 - Prefer recommended Expo modules over third-party libraries, and check your available skills before adding dependencies. Docs: https://docs.expo.dev/versions/latest/index.md
+
+## Project notes (Rocket Snail)
+
+- This is a single-canvas game, so it intentionally does NOT use Expo Router: `App.tsx` switches between a few screens with plain React state.
+- Game logic (`src/game/engine.ts`) and drawing (`src/game/draw.ts`) are worklets that run on the UI thread from `useFrameCallback`. Keep them free of React and of anything that is not worklet-safe.
+- All in-game text lives in `src/i18n/strings.ts`. Ads and real-money purchases are stubs in `src/services/`.
+- The project must keep running in Expo Go, so only add libraries that Expo Go ships with.
