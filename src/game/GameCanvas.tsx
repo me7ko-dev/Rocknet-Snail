@@ -1,54 +1,79 @@
 // The game view: a Skia canvas + touch input + the 60 FPS loop.
 // The loop runs on the UI thread (useFrameCallback), so React never slows it down.
+// Things React needs to know about (coins, crash, game over...) are sent as events.
 
-import { Canvas, Group, Picture, Text, createPicture, matchFont } from '@shopify/react-native-skia';
+import { Nunito_900Black } from '@expo-google-fonts/nunito';
+import { Canvas, Picture, createPicture, useFont } from '@shopify/react-native-skia';
 import { useEffect, useMemo } from 'react';
-import { Platform, StyleSheet, useWindowDimensions } from 'react-native';
+import { StyleSheet, useWindowDimensions } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import { useDerivedValue, useFrameCallback, useSharedValue } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { scheduleOnRN } from 'react-native-worklets';
+import { scheduleOnRN, scheduleOnUI } from 'react-native-worklets';
 
-import { COLORS, WORLD_HEIGHT } from './constants';
-import { drawGame } from './draw';
-import { createGameState, stepGame } from './engine';
+import { WORLD_HEIGHT } from './constants';
+import { drawGame, type GameFonts, type GameLabels, type ScreenLayout } from './draw';
+import { createGameState, pressDown, pressUp, stepGame, takeEvents, type GameEvent } from './engine';
+import type { SkinLook } from './skins';
 
 type Props = {
-  rocketColor: string;
-  holdToFlyText: string;
-  onGameOver: (score: number, coins: number) => void;
+  look: SkinLook;
+  bestScore: number;
+  labels: GameLabels;
+  paused: boolean;
+  onEvent: (event: GameEvent, score: number, coins: number) => void;
 };
 
-const fontFamily = Platform.select({ ios: 'Helvetica', default: 'sans-serif' });
+const clamp = (v: number, min: number, max: number) => Math.max(min, Math.min(max, v));
 
-export function GameCanvas({ rocketColor, holdToFlyText, onGameOver }: Props) {
+export function GameCanvas({ look, bestScore, labels, paused, onEvent }: Props) {
   const { width, height } = useWindowDimensions();
   const insets = useSafeAreaInsets();
 
   const unit = height / WORLD_HEIGHT; // pixels per world unit
   const worldWidth = width / unit;
-  const hudLeft = Math.max(insets.left, 16);
-  const hudRight = Math.max(insets.right, 16);
-  const coinIconX = worldWidth - (hudRight + 70) / unit;
+  const layout: ScreenLayout = useMemo(
+    () => ({ unit, width, height, safeLeft: Math.max(insets.left, 16) + 6, safeRight: Math.max(insets.right, 16) + 6 }),
+    [unit, width, height, insets.left, insets.right],
+  );
 
-  const state = useSharedValue(createGameState(worldWidth));
+  // Font sizes follow the screen height, so phones and tablets look the same
+  const hud = useFont(Nunito_900Black, Math.round(clamp(height * 0.075, 22, 60)));
+  const small = useFont(Nunito_900Black, Math.round(clamp(height * 0.05, 16, 40)));
+  const big = useFont(Nunito_900Black, Math.round(clamp(height * 0.09, 26, 72)));
+  const fonts: GameFonts | null = useMemo(() => (hud && small && big ? { hud, small, big } : null), [hud, small, big]);
+
+  // bestScore is read only once, when the run starts
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const state = useSharedValue(useMemo(() => createGameState(worldWidth, bestScore), []));
   const worldWidthSV = useSharedValue(worldWidth);
+  const pausedSV = useSharedValue(paused);
   useEffect(() => {
-    worldWidthSV.value = worldWidth;
+    worldWidthSV.set(worldWidth);
   }, [worldWidth, worldWidthSV]);
+  useEffect(() => {
+    pausedSV.set(paused);
+    if (paused) {
+      scheduleOnUI(() => {
+        'worklet';
+        pressUp(state.value);
+      });
+    }
+  }, [paused, pausedSV, state]);
 
   // The game loop: runs once per screen refresh
   useFrameCallback((frame) => {
     'worklet';
+    if (pausedSV.value) return;
     // dt = seconds since the last frame (capped, so a hiccup never teleports the snail)
     const dt = Math.min((frame.timeSincePreviousFrame ?? 16) / 1000, 1 / 30);
     const s = state.value;
-    s.worldWidth = worldWidthSV.value;
-    const ended = stepGame(s, dt);
-    state.modify(); // tell the canvas that the state changed
-    if (ended) {
-      scheduleOnRN(onGameOver, s.score, s.coins);
+    stepGame(s, dt, worldWidthSV.value);
+    const events = takeEvents(s);
+    for (let i = 0; i < events.length; i++) {
+      scheduleOnRN(onEvent, events[i], s.score, s.coins);
     }
+    state.modify(); // tell the canvas that the state changed
   });
 
   // Finger down = fly up, finger up = fall
@@ -58,58 +83,25 @@ export function GameCanvas({ rocketColor, holdToFlyText, onGameOver }: Props) {
         .minDistance(0)
         .onBegin(() => {
           'worklet';
-          const s = state.value;
-          if (s.phase === 'ready') s.phase = 'playing';
-          s.holding = true;
+          if (!pausedSV.value) pressDown(state.value);
         })
         .onFinalize(() => {
           'worklet';
-          state.value.holding = false;
+          pressUp(state.value);
         }),
-    [state],
+    [state, pausedSV],
   );
 
   // Draw the whole world as one picture each frame
   const picture = useDerivedValue(() => {
     const s = state.value;
-    return createPicture((c) => {
-      c.scale(unit, unit);
-      drawGame(c, s, rocketColor, coinIconX);
-    });
+    return createPicture((c) => drawGame(c, s, look, layout, labels, fonts));
   });
-
-  // Score / coins / hint text
-  const font = useMemo(() => matchFont({ fontFamily, fontSize: 30, fontWeight: 'bold' }), []);
-  const hintFont = useMemo(() => matchFont({ fontFamily, fontSize: 34, fontWeight: 'bold' }), []);
-  const hintWidth = useMemo(() => hintFont.measureText(holdToFlyText).width, [hintFont, holdToFlyText]);
-
-  const scoreText = useDerivedValue(() => `${state.value.score} m`);
-  const coinText = useDerivedValue(() => `${state.value.coins}`);
-  const hintOpacity = useDerivedValue(() => (state.value.phase === 'ready' ? 1 : 0));
-
-  const coinTextX = (coinIconX + 5) * unit;
-  const hudY = 8 * unit + 11;
 
   return (
     <GestureDetector gesture={gesture}>
       <Canvas style={StyleSheet.absoluteFill}>
         <Picture picture={picture} />
-
-        <Text x={hudLeft + 2} y={hudY + 2} text={scoreText} font={font} color={COLORS.hudShadow} />
-        <Text x={hudLeft} y={hudY} text={scoreText} font={font} color={COLORS.hudText} />
-        <Text x={coinTextX + 2} y={hudY + 2} text={coinText} font={font} color={COLORS.hudShadow} />
-        <Text x={coinTextX} y={hudY} text={coinText} font={font} color={COLORS.hudText} />
-
-        <Group opacity={hintOpacity}>
-          <Text
-            x={(width - hintWidth) / 2 + 2}
-            y={height * 0.3 + 2}
-            text={holdToFlyText}
-            font={hintFont}
-            color={COLORS.hudShadow}
-          />
-          <Text x={(width - hintWidth) / 2} y={height * 0.3} text={holdToFlyText} font={hintFont} color={COLORS.hudText} />
-        </Group>
       </Canvas>
     </GestureDetector>
   );

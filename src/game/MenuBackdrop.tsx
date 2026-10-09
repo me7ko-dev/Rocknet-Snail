@@ -1,4 +1,4 @@
-// Animated background for the menu screens: scrolling garden + hovering snail.
+// Animated background for the menu: scrolling garden + hovering snail.
 
 import { Canvas, Picture, Skia, createPicture } from '@shopify/react-native-skia';
 import { StyleSheet, useWindowDimensions } from 'react-native';
@@ -6,10 +6,11 @@ import { useDerivedValue, useFrameCallback, useSharedValue } from 'react-native-
 
 import { WORLD_HEIGHT } from './constants';
 import { drawBackground, drawSnail } from './draw';
+import type { SkinLook } from './skins';
 
-type Props = { rocketColor: string };
+type Props = { look: SkinLook };
 
-export function MenuBackdrop({ rocketColor }: Props) {
+export function MenuBackdrop({ look }: Props) {
   const { width, height } = useWindowDimensions();
   const unit = height / WORLD_HEIGHT;
   const worldWidth = width / unit;
@@ -26,13 +27,17 @@ export function MenuBackdrop({ rocketColor }: Props) {
       const p = Skia.Paint();
       p.setAntiAlias(true);
       c.scale(unit, unit);
-      drawBackground(c, p, worldWidth, t * 20);
-      drawSnail(c, p, worldWidth * 0.18, 66 + Math.sin(t * 2.5) * 3, Math.sin(t * 2) * 5, t, 0.8, rocketColor, false);
+      drawBackground(c, p, worldWidth, t * 18);
+      c.save();
+      c.translate(worldWidth * 0.17, 64 + Math.sin(t * 2.5) * 3);
+      c.scale(1.5, 1.5);
+      drawSnail(c, p, 0, 0, Math.sin(t * 2) * 5, t, 0.75 + 0.25 * Math.sin(t * 7), look, false);
+      c.restore();
     });
   });
 
   return (
-    <Canvas style={StyleSheet.absoluteFill}>
+    <Canvas style={StyleSheet.absoluteFill} pointerEvents="none">
       <Picture picture={picture} />
     </Canvas>
   );

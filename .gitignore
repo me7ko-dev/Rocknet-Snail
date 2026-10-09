@@ -39,3 +39,6 @@ yarn-error.*
 # generated native folders
 /ios
 /android
+
+# asset previews (npm run assets -- preview)
+preview-out/
