@@ -3,7 +3,7 @@
 import { Canvas, Circle, Group, Path, RoundedRect, Skia } from '@shopify/react-native-skia';
 import { useMemo } from 'react';
 
-export type IconName = 'pause' | 'play' | 'gear' | 'back' | 'home' | 'cart' | 'retry';
+export type IconName = 'pause' | 'play' | 'gear' | 'back' | 'home' | 'cart' | 'retry' | 'star';
 
 type Props = { name: IconName; size?: number; color?: string };
 
@@ -17,6 +17,7 @@ export function Icon({ name, size = 24, color = '#FFFFFF' }: Props) {
   const paths = useMemo(
     () => ({
       play: svg('M8 5.5 L19 12 L8 18.5 Z'),
+      star: svg('M12 2.5 L14.8 8.6 L21.4 9.3 L16.4 13.7 L17.9 20.3 L12 16.9 L6.1 20.3 L7.6 13.7 L2.6 9.3 L9.2 8.6 Z'),
       back: svg('M14.5 5 L7.5 12 L14.5 19'),
       home: svg('M4 11.5 L12 4.5 L20 11.5 M6.5 10 L6.5 19.5 L17.5 19.5 L17.5 10'),
       cart: svg('M3 5 L6 5 L8 15 L18 15 L20 8 L7 8'),
@@ -35,6 +36,7 @@ export function Icon({ name, size = 24, color = '#FFFFFF' }: Props) {
           </>
         )}
         {name === 'play' && <Path path={paths.play} color={color} strokeJoin="round" />}
+        {name === 'star' && <Path path={paths.star} color={color} />}
         {name === 'gear' && (
           <Group color={color}>
             {[0, 45, 90, 135, 180, 225, 270, 315].map((deg) => (

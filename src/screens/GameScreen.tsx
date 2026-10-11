@@ -5,6 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { GameCanvas, type CanvasEvent } from '../game/GameCanvas';
 import type { GameLabels } from '../game/draw';
+import type { RunSnapshot } from '../game/engine';
 import type { SkinLook } from '../game/skins';
 import type { Strings } from '../i18n/strings';
 import { haptics } from '../services/haptics';
@@ -14,14 +15,16 @@ import { Button, RoundButton } from '../ui/Button';
 import { LettuceIcon } from '../ui/LettuceIcon';
 import { UI, menuScale } from '../ui/theme';
 
-export type RunResult = { score: number; coins: number; best: number; isNewBest: boolean };
+export type RunResult = { score: number; coins: number; best: number; isNewBest: boolean; missionsDone: number };
+
+const EMPTY_RUN: RunSnapshot = { score: 0, coins: 0, powerups: 0, gates: 0, shieldSaves: 0 };
 
 type Props = {
   t: Strings;
   look: SkinLook;
   best: number;
-  /** Saves the run and returns the (maybe new) record */
-  onRunFinished: (score: number, coins: number) => RunResult;
+  /** Saves the run (record, lettuce, missions) and returns what to show on the results card */
+  onRunFinished: (run: RunSnapshot) => RunResult;
   onMenu: () => void;
   onShop: () => void;
 };
@@ -35,20 +38,27 @@ export function GameScreen({ t, look, best, onRunFinished, onMenu, onShop }: Pro
   const [paused, setPaused] = useState(false);
   const [crashed, setCrashed] = useState(false);
   // What we know about the current run (updated with every event from the game)
-  const run = useRef({ started: false, saved: false, score: 0, coins: 0 });
+  const run = useRef({ started: false, saved: false, last: EMPTY_RUN });
   const finishRef = useRef(onRunFinished);
   useLayoutEffect(() => {
     finishRef.current = onRunFinished;
   });
 
   const labels: GameLabels = useMemo(
-    () => ({ holdToFly: t.holdToFly, newBest: t.newBest, bestFlag: t.bestFlag, meters: t.meters }),
+    () => ({
+      holdToFly: t.holdToFly,
+      newBest: t.newBest,
+      bestFlag: t.bestFlag,
+      meters: t.meters,
+      magnet: t.magnet,
+      shield: t.shield,
+      double: t.double,
+    }),
     [t],
   );
 
-  const handleEvent = useCallback((event: CanvasEvent, score: number, coins: number) => {
-    run.current.score = score;
-    run.current.coins = coins;
+  const handleEvent = useCallback((event: CanvasEvent, snapshot: RunSnapshot) => {
+    run.current.last = snapshot;
     switch (event) {
       case 'start':
         run.current.started = true;
@@ -68,6 +78,14 @@ export function GameScreen({ t, look, best, onRunFinished, onMenu, onShop }: Pro
         sound.play('best');
         haptics.success();
         break;
+      case 'power':
+        sound.play('power');
+        haptics.success();
+        break;
+      case 'shieldBreak':
+        sound.play('shieldBreak');
+        haptics.warning();
+        break;
       case 'crash':
         setCrashed(true);
         sound.stopThrust();
@@ -77,7 +95,7 @@ export function GameScreen({ t, look, best, onRunFinished, onMenu, onShop }: Pro
       case 'over':
         if (!run.current.saved) {
           run.current.saved = true;
-          setResult(finishRef.current(score, coins));
+          setResult(finishRef.current(snapshot));
         }
         break;
     }
@@ -88,13 +106,13 @@ export function GameScreen({ t, look, best, onRunFinished, onMenu, onShop }: Pro
     const r = run.current;
     if (r.started && !r.saved) {
       r.saved = true;
-      finishRef.current(r.score, r.coins);
+      finishRef.current(r.last);
     }
     to();
   }, []);
 
   const playAgain = () => {
-    run.current = { started: false, saved: false, score: 0, coins: 0 };
+    run.current = { started: false, saved: false, last: EMPTY_RUN };
     setResult(null);
     setPaused(false);
     setCrashed(false);
@@ -183,6 +201,14 @@ export function GameScreen({ t, look, best, onRunFinished, onMenu, onShop }: Pro
                 <AppText weight="black" size={24} color={UI.greenDark}>
                   +{result.coins}
                 </AppText>
+                {result.missionsDone > 0 && (
+                  <View style={styles.missionDone}>
+                    <AppText weight="black" size={15} color={UI.ink}>
+                      ★ {t.missionComplete}
+                      {result.missionsDone > 1 ? ` ×${result.missionsDone}` : ''}
+                    </AppText>
+                  </View>
+                )}
               </View>
               <View style={styles.buttons}>
                 <RoundButton icon="home" label={t.menu} variant="blue" onPress={onMenu} />
@@ -221,5 +247,6 @@ const styles = StyleSheet.create({
   score: { lineHeight: 62 },
   newBest: { backgroundColor: UI.green, borderRadius: 16, paddingVertical: 3, paddingHorizontal: 14 },
   lettuceRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 2 },
+  missionDone: { backgroundColor: UI.yellow, borderRadius: 14, paddingVertical: 3, paddingHorizontal: 10, marginLeft: 8 },
   buttons: { flexDirection: 'row', alignItems: 'center', gap: 14, marginTop: 12 },
 });

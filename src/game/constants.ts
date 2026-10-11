@@ -28,6 +28,16 @@ export const LETTUCE_CHANCE = 0.55; // chance of a row of lettuce between obstac
 export const LETTUCE_RADIUS = 3;
 export const DROP_FALL_SPEED = 70;
 
+// Power-ups (bubbles that appear every now and then)
+export const POWER_EVERY_MIN = 280; // distance between power-ups, in units
+export const POWER_EVERY_MAX = 520;
+export const POWER_RADIUS = 4.5;
+export const MAGNET_TIME = 8; // seconds
+export const MAGNET_RANGE = 42; // units
+export const DOUBLE_TIME = 10;
+export const SHIELD_TIME = 15; // a shield also pops by itself after this long
+export const SAFE_AFTER_SHIELD = 1; // seconds of blinking after the shield takes a hit
+
 // Day → sunset → night → day. One full cycle every this many units.
 export const DAY_CYCLE = 3000;
 
@@ -71,6 +81,9 @@ export const COLORS = {
   lettuceDark: '#4FAF3A',
   flag: '#FF5A5F',
   star: '#FFD84D',
+  magnet: '#FF5A5F',
+  shield: '#4DC9FF',
+  bubble: '#E8F8FF',
   hudText: '#FFFFFF',
   hudShadow: '#2B3A55',
   ink: '#2B3A55',

@@ -137,6 +137,22 @@ function nope() {
   return b;
 }
 
+function power() {
+  const b = buffer(0.5);
+  tone(b, 0, 0.3, 380, { f1: 1500, type: 'triangle', vol: 0.45, decay: 1.5 });
+  ['E6', 'G#6', 'B6'].forEach((n, i) => tone(b, 0.12 + i * 0.06, 0.25, note(n), { type: 'triangle', vol: 0.3, decay: 3 }));
+  hiss(b, 0.1, 0.35, { vol: 0.08, low: 0.95, decay: 4 });
+  return b;
+}
+
+function shieldBreak() {
+  const b = buffer(0.45);
+  hiss(b, 0, 0.25, { vol: 0.5, low: 0.9, decay: 5, attack: 0.001 });
+  tone(b, 0, 0.35, 1800, { f1: 500, type: 'sine', vol: 0.35, decay: 4, attack: 0.001 });
+  tone(b, 0.03, 0.3, 2400, { f1: 900, type: 'sine', vol: 0.2, decay: 5, attack: 0.001 });
+  return b;
+}
+
 /** Seamless rocket hiss for looping while the finger is held */
 function thrust() {
   const len = 1.2;
@@ -211,3 +227,6 @@ writeWav('tap', tap(), 0.5);
 writeWav('nope', nope(), 0.6);
 writeWav('thrust', thrust(), 0.7);
 writeWav('music', music(), 0.8);
+// added in version 1.1 (kept last so the older sounds stay exactly the same)
+writeWav('power', power(), 0.75);
+writeWav('shieldBreak', shieldBreak(), 0.7);

@@ -1,12 +1,7 @@
-import { beforeEach, describe, expect, it, jest } from '@jest/globals';
+import { beforeEach, describe, expect, it } from '@jest/globals';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import { DEFAULT_SAVE, loadSave, sanitizeSave, writeSave } from '../save';
-
-jest.mock('@react-native-async-storage/async-storage', () =>
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
-  require('@react-native-async-storage/async-storage/jest/async-storage-mock'),
-);
 
 describe('sanitizeSave', () => {
   it('turns garbage into a fresh save', () => {
@@ -30,6 +25,12 @@ describe('sanitizeSave', () => {
     expect(s.hat).toBe('none');
     expect(s.rocket).toBe(DEFAULT_SAVE.rocket);
     expect(s.ownedSkins).toContain('party');
+  });
+
+  it('drops broken mission data and unknown achievements', () => {
+    const s = sanitizeSave({ daily: { day: 'x', missions: [{ kind: 'fly to the moon' }], progress: [], claimed: [] }, claimedAchievements: ['best-100', 'nope'] });
+    expect(s.daily).toBeNull();
+    expect(s.claimedAchievements).toEqual(['best-100']);
   });
 
   it('keeps owned items that are being worn', () => {

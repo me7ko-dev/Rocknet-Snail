@@ -11,6 +11,8 @@ const EFFECTS = {
   buy: require('../../assets/sounds/buy.wav'),
   tap: require('../../assets/sounds/tap.wav'),
   nope: require('../../assets/sounds/nope.wav'),
+  power: require('../../assets/sounds/power.wav'),
+  shieldBreak: require('../../assets/sounds/shieldBreak.wav'),
 };
 
 export type Effect = keyof typeof EFFECTS;

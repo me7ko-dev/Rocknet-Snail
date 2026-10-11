@@ -6,6 +6,7 @@
 import {
   CEILING_Y,
   CRASH_TIME,
+  DOUBLE_TIME,
   DROP_FALL_SPEED,
   GAP_EASY,
   GAP_HARD,
@@ -14,9 +15,16 @@ import {
   GROUND_Y,
   LETTUCE_CHANCE,
   LETTUCE_RADIUS,
+  MAGNET_RANGE,
+  MAGNET_TIME,
   MAX_FALL_SPEED,
   MAX_RISE_SPEED,
   MAX_SPEED,
+  POWER_EVERY_MAX,
+  POWER_EVERY_MIN,
+  POWER_RADIUS,
+  SAFE_AFTER_SHIELD,
+  SHIELD_TIME,
   SNAIL_HIT_RADIUS,
   SNAIL_X,
   SPEED_GAIN,
@@ -46,9 +54,18 @@ export type Obstacle = {
   size: number; // leaf scale, hose length
   phase: number; // for flapping / swaying
   top: boolean; // hoses: hanging from the top instead of standing on the grass
+  gate: boolean; // the lower hose of a gate (used to count gates flown through)
+  counted: boolean; // already counted as passed
 };
 
 export type Lettuce = { x: number; y: number; phase: number };
+
+export type PowerKind = 'magnet' | 'shield' | 'double';
+
+export type PowerUp = { kind: PowerKind; x: number; y: number; phase: number };
+
+/** What a run achieved (for missions and achievements) */
+export type RunSnapshot = { score: number; coins: number; powerups: number; gates: number; shieldSaves: number };
 
 export type ParticleKind = 'puff' | 'sparkle' | 'star' | 'confetti';
 
@@ -64,9 +81,9 @@ export type Particle = {
   hue: number; // 0..1, used for confetti colours
 };
 
-export type Popup = { kind: 'plus' | 'best'; x: number; y: number; life: number };
+export type Popup = { kind: 'plus' | 'best' | PowerKind; x: number; y: number; life: number; value: number };
 
-export type GameEvent = 'start' | 'coin' | 'crash' | 'best' | 'thrustOn' | 'thrustOff' | 'over';
+export type GameEvent = 'start' | 'coin' | 'crash' | 'best' | 'thrustOn' | 'thrustOff' | 'over' | 'power' | 'shieldBreak';
 
 export type Phase = 'ready' | 'playing' | 'crashing' | 'over';
 
@@ -94,12 +111,30 @@ export type GameState = {
   puffTimer: number;
   bestDistance: number; // record of the player, in units (0 = no record yet)
   passedBest: boolean;
+  // Power-ups: seconds left for each (0 = not active)
+  magnetTime: number;
+  doubleTime: number;
+  shieldTime: number;
+  safeTime: number; // blinking, cannot be hit (right after the shield pops)
+  powerIn: number; // distance until the next power-up may appear
+  stats: { powerups: number; gates: number; shieldSaves: number };
   obstacles: Obstacle[];
   lettuce: Lettuce[];
+  powerUps: PowerUp[];
   particles: Particle[];
   popups: Popup[];
   events: GameEvent[]; // emptied by the game view every frame
 };
+
+function rand(min: number, max: number) {
+  'worklet';
+  return min + Math.random() * (max - min);
+}
+
+function clamp(v: number, min: number, max: number) {
+  'worklet';
+  return Math.max(min, Math.min(max, v));
+}
 
 export function createGameState(worldWidth: number, bestScore = 0, snailX = SNAIL_X): GameState {
   'worklet';
@@ -126,22 +161,19 @@ export function createGameState(worldWidth: number, bestScore = 0, snailX = SNAI
     // the record is beaten at best + 1 points (the score has to be higher, not equal)
     bestDistance: (bestScore + 1) * UNITS_PER_POINT,
     passedBest: bestScore <= 0,
+    magnetTime: 0,
+    doubleTime: 0,
+    shieldTime: 0,
+    safeTime: 0,
+    powerIn: rand(POWER_EVERY_MIN * 0.6, POWER_EVERY_MAX * 0.6),
+    stats: { powerups: 0, gates: 0, shieldSaves: 0 },
     obstacles: [],
     lettuce: [],
+    powerUps: [],
     particles: [],
     popups: [],
     events: [],
   };
-}
-
-function rand(min: number, max: number) {
-  'worklet';
-  return min + Math.random() * (max - min);
-}
-
-function clamp(v: number, min: number, max: number) {
-  'worklet';
-  return Math.max(min, Math.min(max, v));
 }
 
 /** 0 at the start of a run, 1 at top speed */
@@ -169,6 +201,8 @@ function addObstacle(s: GameState, kind: ObstacleKind, x: number, y: number, ext
     size: extra.size ?? 1,
     phase: extra.phase ?? rand(0, 6),
     top: extra.top ?? false,
+    gate: extra.gate ?? false,
+    counted: false,
   });
 }
 
@@ -260,7 +294,7 @@ function spawnPattern(s: GameState): { extra: number; hasLettuce: boolean } {
     const topEnd = centre - GATE_OPENING / 2;
     const bottomEnd = centre + GATE_OPENING / 2;
     addObstacle(s, 'hose', x, topEnd, { size: topEnd, phase: 0, top: true });
-    addObstacle(s, 'hose', x, bottomEnd, { size: GROUND_Y - bottomEnd, phase: 0 });
+    addObstacle(s, 'hose', x, bottomEnd, { size: GROUND_Y - bottomEnd, phase: 0, gate: true });
     lettuceRow(s, x - 14, centre, 4, 8, 0);
     return { extra: 14, hasLettuce: true };
   } else if (pattern === 'flock') {
@@ -334,6 +368,33 @@ function burst(s: GameState, kind: ParticleKind, x: number, y: number, count: nu
   }
 }
 
+/** A snapshot of the run for React (missions, saving) */
+export function snapshot(s: GameState): RunSnapshot {
+  'worklet';
+  return { score: s.score, coins: s.coins, powerups: s.stats.powerups, gates: s.stats.gates, shieldSaves: s.stats.shieldSaves };
+}
+
+function spawnPowerUp(s: GameState, x: number) {
+  'worklet';
+  // never offer a shield while one is still on
+  const kinds: PowerKind[] = s.shieldTime > 0 ? ['magnet', 'double'] : ['magnet', 'shield', 'double'];
+  const kind = kinds[Math.floor(Math.random() * kinds.length)];
+  // somewhere the snail can reach from the last obstacle (safe band is in hit-circle heights)
+  const y = clamp((s.safeTop + s.safeBottom) / 2 + 3 + rand(-6, 6), CEILING_Y + 6, GROUND_Y - 10);
+  s.powerUps.push({ kind, x, y, phase: 0 });
+}
+
+function collectPowerUp(s: GameState, p: PowerUp) {
+  'worklet';
+  if (p.kind === 'magnet') s.magnetTime = MAGNET_TIME;
+  else if (p.kind === 'double') s.doubleTime = DOUBLE_TIME;
+  else s.shieldTime = SHIELD_TIME;
+  s.stats.powerups += 1;
+  s.events.push('power');
+  s.popups.push({ kind: p.kind, x: p.x, y: p.y - 6, life: 1.2, value: 0 });
+  burst(s, 'sparkle', p.x, p.y, 10, 30, 0.5);
+}
+
 function updateEffects(s: GameState, dt: number, move: number) {
   'worklet';
   for (let i = s.particles.length - 1; i >= 0; i--) {
@@ -354,10 +415,35 @@ function updateEffects(s: GameState, dt: number, move: number) {
   for (let i = s.popups.length - 1; i >= 0; i--) {
     const p = s.popups[i];
     p.life -= dt;
-    p.y -= (p.kind === 'best' ? 6 : 14) * dt;
+    p.y -= (p.kind === 'plus' ? 14 : 6) * dt;
     if (p.life <= 0) s.popups.splice(i, 1);
   }
   if (s.shake > 0) s.shake = Math.max(0, s.shake - dt);
+}
+
+function updatePowerTimers(s: GameState, dt: number) {
+  'worklet';
+  s.magnetTime = Math.max(0, s.magnetTime - dt);
+  s.doubleTime = Math.max(0, s.doubleTime - dt);
+  s.safeTime = Math.max(0, s.safeTime - dt);
+  if (s.shieldTime > 0) {
+    s.shieldTime = Math.max(0, s.shieldTime - dt);
+    if (s.shieldTime === 0) burst(s, 'sparkle', s.snailX, s.snailY - 6, 10, 30, 0.4);
+  }
+}
+
+/** The shield takes the hit: it pops, the obstacle is knocked away, and the snail blinks for a moment */
+function shieldSave(s: GameState, index: number) {
+  'worklet';
+  const o = s.obstacles[index];
+  s.shieldTime = 0;
+  s.safeTime = SAFE_AFTER_SHIELD;
+  s.stats.shieldSaves += 1;
+  s.shake = 0.15;
+  burst(s, 'star', o.x, o.kind === 'hose' ? s.snailY - 3 : o.y, 6, 30, 0.6);
+  burst(s, 'sparkle', s.snailX, s.snailY - 6, 12, 40, 0.5);
+  s.obstacles.splice(index, 1);
+  s.events.push('shieldBreak');
 }
 
 function emitPuff(s: GameState) {
@@ -389,6 +475,9 @@ function crash(s: GameState) {
   s.snailVY = -40; // a little hop before falling
   s.holding = false;
   s.shake = 0.35;
+  s.magnetTime = 0;
+  s.doubleTime = 0;
+  s.shieldTime = 0;
   burst(s, 'star', s.snailX + 4, s.snailY - 8, 7, 28, 0.9);
   s.events.push('crash');
 }
@@ -454,7 +543,7 @@ export function stepGame(s: GameState, dt: number, worldWidth = s.worldWidth): v
   if (!s.passedBest && s.distance >= s.bestDistance) {
     s.passedBest = true;
     s.events.push('best');
-    s.popups.push({ kind: 'best', x: s.snailX + 6, y: s.snailY - 20, life: 1.6 });
+    s.popups.push({ kind: 'best', x: s.snailX + 6, y: s.snailY - 20, life: 1.6, value: 0 });
     burst(s, 'confetti', s.snailX + 4, s.snailY - 10, 22, 40, 1.4);
   }
 
@@ -467,13 +556,20 @@ export function stepGame(s: GameState, dt: number, worldWidth = s.worldWidth): v
     }
   }
 
+  updatePowerTimers(s, dt);
+
   // 4. Spawn new things
   s.spawnIn -= move;
+  s.powerIn -= move;
   if (s.spawnIn <= 0) {
     const { extra, hasLettuce } = spawnPattern(s);
     const gap = GAP_EASY + (GAP_HARD - GAP_EASY) * difficulty(s);
     s.spawnIn = extra + gap + rand(0, 15);
-    if (!hasLettuce && Math.random() < LETTUCE_CHANCE) {
+    if (s.powerIn <= 0 && !hasLettuce) {
+      // a power-up bubble in the free space before the next obstacle (instead of lettuce)
+      spawnPowerUp(s, Math.max(s.worldWidth, MIN_SPAWN_X) + 10 + extra + gap * 0.45);
+      s.powerIn = rand(POWER_EVERY_MIN, POWER_EVERY_MAX);
+    } else if (!hasLettuce && Math.random() < LETTUCE_CHANCE) {
       // put the lettuce row in the free space before the next obstacle
       const wave = Math.random() < 0.5 ? 0 : rand(4, 9);
       // as many as fit before the next obstacle's nozzle (3 to 5)
@@ -503,10 +599,30 @@ export function stepGame(s: GameState, dt: number, worldWidth = s.worldWidth): v
       s.obstacles.splice(i, 1);
       continue;
     }
-    if (collides(s.snailX, s.snailY, o)) {
-      crash(s);
-      updateEffects(s, dt, 0);
-      return;
+    if (o.gate && !o.counted && o.x < s.snailX - 3) {
+      o.counted = true;
+      s.stats.gates += 1;
+    }
+    if (s.safeTime > 0 || !collides(s.snailX, s.snailY, o)) continue;
+    if (s.shieldTime > 0) {
+      shieldSave(s, i);
+      continue;
+    }
+    crash(s);
+    updateEffects(s, dt, 0);
+    return;
+  }
+
+  // 5b. Power-up bubbles
+  for (let i = s.powerUps.length - 1; i >= 0; i--) {
+    const p = s.powerUps[i];
+    p.x -= move;
+    p.phase += dt;
+    if (p.x < -10) {
+      s.powerUps.splice(i, 1);
+    } else if (hitsCircle(s.snailX, s.snailY - 3, p.x, p.y, POWER_RADIUS)) {
+      s.powerUps.splice(i, 1);
+      collectPowerUp(s, p);
     }
   }
 
@@ -515,15 +631,27 @@ export function stepGame(s: GameState, dt: number, worldWidth = s.worldWidth): v
     const l = s.lettuce[i];
     l.x -= move;
     l.phase += dt;
+    if (s.magnetTime > 0) {
+      // the magnet pulls nearby lettuce towards the snail
+      const dx = s.snailX - l.x;
+      const dy = s.snailY - 3 - l.y;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      if (dist < MAGNET_RANGE && dist > 0.01) {
+        const pull = Math.min(dist, (60 + s.speed) * dt);
+        l.x += (dx / dist) * pull;
+        l.y += (dy / dist) * pull;
+      }
+    }
     if (l.x < -10) {
       s.lettuce.splice(i, 1);
       continue;
     }
     if (hitsCircle(s.snailX, s.snailY - 3, l.x, l.y, LETTUCE_RADIUS + 1)) {
       s.lettuce.splice(i, 1);
-      s.coins += 1;
+      const value = s.doubleTime > 0 ? 2 : 1;
+      s.coins += value;
       s.events.push('coin');
-      s.popups.push({ kind: 'plus', x: l.x, y: l.y - 4, life: 0.7 });
+      s.popups.push({ kind: 'plus', x: l.x, y: l.y - 4, life: 0.7, value });
       burst(s, 'sparkle', l.x, l.y, 6, 22, 0.4);
     }
   }

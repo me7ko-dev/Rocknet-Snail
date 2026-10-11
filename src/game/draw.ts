@@ -5,8 +5,8 @@
 import { PaintStyle, Skia, StrokeCap, TileMode } from '@shopify/react-native-skia';
 import type { SkCanvas, SkFont, SkPaint } from '@shopify/react-native-skia';
 
-import { COLORS, DAY_CYCLE, GROUND_Y, WORLD_HEIGHT } from './constants';
-import { snailAngle, type GameState, type Obstacle, type Particle } from './engine';
+import { COLORS, DAY_CYCLE, DOUBLE_TIME, GROUND_Y, MAGNET_TIME, POWER_RADIUS, SHIELD_TIME, WORLD_HEIGHT } from './constants';
+import { snailAngle, type GameState, type Obstacle, type Particle, type PowerKind, type PowerUp } from './engine';
 import type { HatId, SkinLook } from './skins';
 
 // ---------------------------------------------------------------- helpers
@@ -723,6 +723,87 @@ function drawParticle(c: SkCanvas, p: SkPaint, q: Particle) {
   }
 }
 
+
+// ---------------------------------------------------------------- power-ups
+
+/** The symbol of a power-up, centred on (x, y), about 6 units big at size 1 */
+export function drawPowerIcon(c: SkCanvas, p: SkPaint, kind: PowerKind, x: number, y: number, size = 1) {
+  'worklet';
+  c.save();
+  c.translate(x, y);
+  c.scale(size, size);
+  if (kind === 'magnet') {
+    // red horseshoe with grey tips
+    const u = Skia.PathBuilder.Make();
+    u.moveTo(-2.2, -2.6);
+    u.lineTo(-2.2, 0.2);
+    u.cubicTo(-2.2, 3.2, 2.2, 3.2, 2.2, 0.2);
+    u.lineTo(2.2, -2.6);
+    stroke(p, COLORS.magnet, 1.9);
+    p.setStrokeCap(StrokeCap.Butt);
+    c.drawPath(u.build(), p);
+    fill(p, '#D6DCE4');
+    c.drawRect(Skia.XYWHRect(-3.15, -3.4, 1.9, 1.3), p);
+    c.drawRect(Skia.XYWHRect(1.25, -3.4, 1.9, 1.3), p);
+  } else if (kind === 'shield') {
+    const sh = Skia.PathBuilder.Make();
+    sh.moveTo(0, -3.2);
+    sh.lineTo(2.8, -2.2);
+    sh.cubicTo(2.8, 1, 1.6, 2.6, 0, 3.4);
+    sh.cubicTo(-1.6, 2.6, -2.8, 1, -2.8, -2.2);
+    sh.close();
+    fill(p, COLORS.shield);
+    c.drawPath(sh.build(), p);
+    fill(p, '#FFFFFF', 0.85);
+    c.drawRect(Skia.XYWHRect(-0.5, -2.2, 1, 4.4), p);
+    c.drawRect(Skia.XYWHRect(-1.9, -0.7, 3.8, 1), p);
+  } else {
+    // two lettuces = double lettuce
+    drawLettuce(c, p, -1.1, 0.6, 0.62);
+    drawLettuce(c, p, 1.2, -0.6, 0.62);
+  }
+  c.restore();
+}
+
+function drawPowerBubble(c: SkCanvas, p: SkPaint, pu: PowerUp) {
+  'worklet';
+  const y = pu.y + Math.sin(pu.phase * 3) * 1.2;
+  const r = POWER_RADIUS * (1 + Math.sin(pu.phase * 6) * 0.05);
+  fill(p, COLORS.bubble, 0.75);
+  c.drawCircle(pu.x, y, r, p);
+  stroke(p, '#FFFFFF', 0.6);
+  c.drawCircle(pu.x, y, r, p);
+  drawPowerIcon(c, p, pu.kind, pu.x, y, 0.95);
+  fill(p, '#FFFFFF', 0.9);
+  c.drawCircle(pu.x - r * 0.45, y - r * 0.5, r * 0.18, p);
+}
+
+/** Soft bubble around the snail while the shield is on (blinks when it is about to pop) */
+function drawShield(c: SkCanvas, p: SkPaint, x: number, y: number, time: number, left: number) {
+  'worklet';
+  if (left < 3 && Math.floor(time * 8) % 2 === 0) return;
+  const r = 15 + Math.sin(time * 5) * 0.6;
+  fill(p, COLORS.shield, 0.16);
+  c.drawCircle(x - 1, y - 6, r, p);
+  stroke(p, COLORS.shield, 0.9, 0.8);
+  c.drawCircle(x - 1, y - 6, r, p);
+  stroke(p, '#FFFFFF', 0.9, 0.7);
+  const arc = Skia.PathBuilder.Make();
+  arc.moveTo(x - 1 - r * 0.7, y - 6 - r * 0.45);
+  arc.quadTo(x - 1 - r * 0.35, y - 6 - r * 0.95, x - 1 + r * 0.15, y - 6 - r * 0.95);
+  c.drawPath(arc.build(), p);
+}
+
+/** Small lines around the snail while the magnet is on */
+function drawMagnetAura(c: SkCanvas, p: SkPaint, x: number, y: number, time: number) {
+  'worklet';
+  for (let k = 0; k < 3; k++) {
+    const t = wrap(time * 1.5 + k / 3, 1);
+    stroke(p, COLORS.magnet, 0.5, 0.5 * (1 - t));
+    c.drawCircle(x - 1, y - 6, 8 + t * 14, p);
+  }
+}
+
 // ---------------------------------------------------------------- text
 
 /** Width of a text in pixels (works the same on phones and in Node) */
@@ -766,7 +847,15 @@ export type ScreenLayout = {
 
 export type GameFonts = { hud: SkFont; small: SkFont; big: SkFont };
 
-export type GameLabels = { holdToFly: string; newBest: string; bestFlag: string; meters: string };
+export type GameLabels = {
+  holdToFly: string;
+  newBest: string;
+  bestFlag: string;
+  meters: string;
+  magnet: string;
+  shield: string;
+  double: string;
+};
 
 
 export function drawGame(
@@ -808,6 +897,7 @@ export function drawGame(
     else if (o.kind === 'hose') drawHose(c, p, o, s.time);
     else drawDrop(c, p, o);
   }
+  for (let i = 0; i < s.powerUps.length; i++) drawPowerBubble(c, p, s.powerUps[i]);
   for (let i = 0; i < s.particles.length; i++) {
     if (s.particles[i].kind === 'puff') drawParticle(c, p, s.particles[i]);
   }
@@ -820,7 +910,13 @@ export function drawGame(
   } else if (s.phase === 'playing') {
     flame = s.holding ? 1 : 0.15;
   }
-  drawSnail(c, p, s.snailX, y, snailAngle(s), s.time, flame, look, s.phase === 'crashing' || s.phase === 'over');
+  if (s.magnetTime > 0) drawMagnetAura(c, p, s.snailX, y, s.time);
+  // right after the shield pops the snail blinks (and cannot be hit)
+  const blinkHidden = s.safeTime > 0 && Math.floor(s.time * 14) % 2 === 0;
+  if (!blinkHidden) {
+    drawSnail(c, p, s.snailX, y, snailAngle(s), s.time, flame, look, s.phase === 'crashing' || s.phase === 'over');
+  }
+  if (s.shieldTime > 0) drawShield(c, p, s.snailX, y, s.time, s.shieldTime);
 
   for (let i = 0; i < s.particles.length; i++) {
     if (s.particles[i].kind !== 'puff') drawParticle(c, p, s.particles[i]);
@@ -841,6 +937,26 @@ export function drawGame(
   drawLettuce(c, p, (coinX - 0.6 * fonts.hud.getSize()) / u, 8, 1.15);
   c.restore();
 
+  // Active power-ups under the score: icon + a bar that runs out
+  const active: [PowerKind, number][] = [];
+  if (s.shieldTime > 0) active.push(['shield', s.shieldTime / SHIELD_TIME]);
+  if (s.magnetTime > 0) active.push(['magnet', s.magnetTime / MAGNET_TIME]);
+  if (s.doubleTime > 0) active.push(['double', s.doubleTime / DOUBLE_TIME]);
+  for (let i = 0; i < active.length; i++) {
+    const bx = layout.safeLeft / u + 3.5;
+    const by = 20 + i * 8;
+    c.save();
+    c.scale(u, u);
+    fill(p, '#FFFFFF', 0.85);
+    c.drawCircle(bx, by, 3.4, p);
+    drawPowerIcon(c, p, active[i][0], bx, by, 0.75);
+    fill(p, COLORS.hudShadow, 0.35);
+    rrect(c, p, bx + 5, by - 1.2, 16, 2.4, 1.2);
+    fill(p, active[i][0] === 'magnet' ? COLORS.magnet : active[i][0] === 'shield' ? COLORS.shield : COLORS.lettuce);
+    rrect(c, p, bx + 5, by - 1.2, Math.max(2.4, 16 * active[i][1]), 2.4, 1.2);
+    c.restore();
+  }
+
   if (showFlag) {
     const tw = textWidth(fonts.small, labels.bestFlag);
     outlinedText(c, p, labels.bestFlag, flagX * u - tw / 2, (GROUND_Y - 35) * u, fonts.small, '#FFFFFF', COLORS.flag, 4);
@@ -850,7 +966,14 @@ export function drawGame(
     const pop = s.popups[i];
     const alpha = Math.min(1, pop.life * 3);
     if (pop.kind === 'plus') {
-      outlinedText(c, p, '+1', pop.x * u - 8, pop.y * u, fonts.small, '#FFFFFF', COLORS.lettuceDark, 4, alpha);
+      const text = `+${pop.value}`;
+      outlinedText(c, p, text, pop.x * u - 8, pop.y * u, fonts.small, pop.value > 1 ? COLORS.star : '#FFFFFF', COLORS.lettuceDark, 4, alpha);
+    } else if (pop.kind !== 'best') {
+      const text = labels[pop.kind];
+      const tw = textWidth(fonts.small, text);
+      const x = Math.max(8, Math.min(pop.x * u - tw / 2, layout.width - tw - 8));
+      const color = pop.kind === 'magnet' ? COLORS.magnet : pop.kind === 'shield' ? COLORS.shield : COLORS.lettuceDark;
+      outlinedText(c, p, text, x, pop.y * u, fonts.small, '#FFFFFF', color, 5, alpha);
     } else {
       const tw = textWidth(fonts.big, labels.newBest);
       const x = Math.min(pop.x * u, layout.width - tw - 16);

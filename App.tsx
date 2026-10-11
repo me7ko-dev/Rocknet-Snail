@@ -8,9 +8,12 @@ import { AppState, StyleSheet, View } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
+import type { RunSnapshot } from './src/game/engine';
+import { ACHIEVEMENTS, achievementProgress, addRunToDaily, dailyFor, dayKey } from './src/game/missions';
 import { makeLook, type Skin } from './src/game/skins';
 import { LANGUAGES } from './src/i18n/strings';
 import { GameScreen, type RunResult } from './src/screens/GameScreen';
+import { MissionsScreen } from './src/screens/MissionsScreen';
 import { ShopScreen } from './src/screens/ShopScreen';
 import { StartScreen } from './src/screens/StartScreen';
 import { ads } from './src/services/ads';
@@ -21,7 +24,7 @@ import { loadSave, writeSave, type SaveData } from './src/storage/save';
 
 SplashScreen.preventAutoHideAsync().catch(() => {});
 
-type Screen = 'start' | 'game' | 'shop';
+type Screen = 'start' | 'game' | 'shop' | 'missions';
 
 export default function App() {
   const [fontsLoaded, fontError] = useFonts({ Nunito_700Bold, Nunito_800ExtraBold, Nunito_900Black });
@@ -69,14 +72,48 @@ export default function App() {
   }, []);
 
   const onRunFinished = useCallback(
-    (score: number, coins: number): RunResult => {
+    (run: RunSnapshot): RunResult => {
       const current = saveRef.current!;
-      const isNewBest = score > current.best;
-      const best = Math.max(score, current.best);
+      const isNewBest = run.score > current.best;
+      const best = Math.max(run.score, current.best);
       const runs = current.runs + 1;
-      updateSave({ best, coins: current.coins + coins, runs, totalLettuce: current.totalLettuce + coins });
+      const { daily, completed } = addRunToDaily(dailyFor(current.daily, dayKey(new Date())), run);
+      updateSave({
+        best,
+        coins: current.coins + run.coins,
+        runs,
+        totalLettuce: current.totalLettuce + run.coins,
+        totalPowerups: current.totalPowerups + run.powerups,
+        totalGates: current.totalGates + run.gates,
+        totalShieldSaves: current.totalShieldSaves + run.shieldSaves,
+        daily,
+      });
       ads.onGameOver(runs);
-      return { score, coins, best, isNewBest };
+      return { score: run.score, coins: run.coins, best, isNewBest, missionsDone: completed };
+    },
+    [updateSave],
+  );
+
+  const onClaimMission = useCallback(
+    (index: number) => {
+      const current = saveRef.current!;
+      const daily = dailyFor(current.daily, dayKey(new Date()));
+      const mission = daily.missions[index];
+      if (!mission || daily.claimed[index] || daily.progress[index] < mission.target) return;
+      updateSave({
+        coins: current.coins + mission.reward,
+        daily: { ...daily, claimed: daily.claimed.map((c, i) => c || i === index) },
+      });
+    },
+    [updateSave],
+  );
+
+  const onClaimAchievement = useCallback(
+    (id: string) => {
+      const current = saveRef.current!;
+      const a = ACHIEVEMENTS.find((x) => x.id === id);
+      if (!a || current.claimedAchievements.includes(id) || achievementProgress(a, current) < a.target) return;
+      updateSave({ coins: current.coins + a.reward, claimedAchievements: [...current.claimedAchievements, id] });
     },
     [updateSave],
   );
@@ -103,6 +140,7 @@ export default function App() {
 
   const goMenu = useCallback(() => setScreen('start'), []);
   const goShop = useCallback(() => setScreen('shop'), []);
+  const goMissions = useCallback(() => setScreen('missions'), []);
 
   const t = save ? LANGUAGES[save.lang] : LANGUAGES.en;
 
@@ -114,7 +152,22 @@ export default function App() {
         {!ready ? (
           <View style={styles.loading} />
         ) : screen === 'start' ? (
-          <StartScreen save={save} t={t} onPlay={() => setScreen('game')} onShop={goShop} onChange={updateSave} />
+          <StartScreen
+            save={save}
+            t={t}
+            onPlay={() => setScreen('game')}
+            onShop={goShop}
+            onMissions={goMissions}
+            onChange={updateSave}
+          />
+        ) : screen === 'missions' ? (
+          <MissionsScreen
+            save={save}
+            t={t}
+            onClaimMission={onClaimMission}
+            onClaimAchievement={onClaimAchievement}
+            onBack={goMenu}
+          />
         ) : screen === 'shop' ? (
           <ShopScreen save={save} t={t} lang={save.lang} onBuy={onBuy} onWear={onWear} onBack={goMenu} />
         ) : (

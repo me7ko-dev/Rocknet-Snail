@@ -13,6 +13,7 @@ import Animated, {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { MenuBackdrop } from '../game/MenuBackdrop';
+import { claimableCount, dayKey } from '../game/missions';
 import { makeLook } from '../game/skins';
 import { LANGUAGE_NAMES, LANGUAGES, type Lang, type Strings } from '../i18n/strings';
 import { sound } from '../services/sound';
@@ -29,10 +30,12 @@ type Props = {
   t: Strings;
   onPlay: () => void;
   onShop: () => void;
+  onMissions: () => void;
   onChange: (change: Partial<SaveData>) => void;
 };
 
-export function StartScreen({ save, t, onPlay, onShop, onChange }: Props) {
+export function StartScreen({ save, t, onPlay, onShop, onMissions, onChange }: Props) {
+  const ready = claimableCount(save, dayKey(new Date()));
   const [settingsOpen, setSettingsOpen] = useState(false);
   const scale = { transform: [{ scale: menuScale(useWindowDimensions().height) }] };
 
@@ -83,7 +86,19 @@ export function StartScreen({ save, t, onPlay, onShop, onChange }: Props) {
             {t.tagline}
           </AppText>
           <Button size="big" icon="play" label={t.play} onPress={onPlay} />
-          <Button size="medium" variant="green" icon="cart" label={t.shop} onPress={onShop} />
+          <View style={styles.menuRow}>
+            <Button size="medium" variant="green" icon="cart" label={t.shop} onPress={onShop} />
+            <View>
+              <Button size="medium" variant="blue" icon="star" label={t.missions} onPress={onMissions} />
+              {ready > 0 && (
+                <View style={styles.badgeDot} pointerEvents="none">
+                  <AppText weight="black" size={14} color="#FFFFFF">
+                    {ready}
+                  </AppText>
+                </View>
+              )}
+            </View>
+          </View>
         </View>
       </SafeAreaView>
 
@@ -172,6 +187,21 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
   },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12, paddingLeft: '30%' },
+  menuRow: { flexDirection: 'row', gap: 12 },
+  badgeDot: {
+    position: 'absolute',
+    top: -8,
+    right: -8,
+    minWidth: 26,
+    height: 26,
+    borderRadius: 13,
+    paddingHorizontal: 7,
+    backgroundColor: UI.red,
+    borderWidth: 2,
+    borderColor: '#FFFFFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   tagline: { marginTop: -10, marginBottom: 2, textAlign: 'center' },
   overlay: { ...StyleSheet.absoluteFill, backgroundColor: UI.backdrop, alignItems: 'center', justifyContent: 'center' },
   panel: {

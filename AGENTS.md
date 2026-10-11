@@ -46,6 +46,7 @@ Docs: https://docs.expo.dev/eas/index.md
 - Game logic (`src/game/engine.ts`) and drawing (`src/game/draw.ts`) are worklets that run on the UI thread from `useFrameCallback`. Keep them free of React and of anything that is not worklet-safe. The engine only mutates state and pushes `events`; React reacts to them in `GameScreen`.
 - `draw.ts` is also used in Node by `scripts/assets.ts` (icons, splash, store screenshots via `npm run assets`), so it must only use Skia APIs that work in both places (e.g. measure text with `textWidth`, not `measureText`).
 - Sounds/music are synthesized by `scripts/make-sounds.mjs` (`npm run sounds`). No third-party images or audio.
+- Daily missions and achievements live in `src/game/missions.ts` (plain TS, not worklets); the engine reports run stats via `snapshot()`.
 - All in-game text lives in `src/i18n/strings.ts`; shop item names live in `src/game/skins.ts`. Ads and real-money purchases are stubs in `src/services/`.
 - The project must keep running in Expo Go, so only add libraries that Expo Go ships with (check `node_modules/expo/bundledNativeModules.json`).
 - Before finishing: `npm run check` (typecheck + lint + jest).

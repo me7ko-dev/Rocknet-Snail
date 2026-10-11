@@ -123,13 +123,13 @@ function gameFonts(height: number): GameFonts {
 
 function labelsFor(lang: Lang) {
   const t = LANGUAGES[lang];
-  return { holdToFly: t.holdToFly, newBest: t.newBest, bestFlag: t.bestFlag, meters: t.meters };
+  return { holdToFly: t.holdToFly, newBest: t.newBest, bestFlag: t.bestFlag, meters: t.meters, magnet: t.magnet, shield: t.shield, double: t.double };
 }
 
 // ---------------------------------------------------------------- scenes
 
 function obstacle(kind: Obstacle['kind'], x: number, y: number, extra: Partial<Obstacle> = {}): Obstacle {
-  return { kind, x, y, baseY: y, vy: 0, size: 1, phase: 0.3, top: false, ...extra };
+  return { kind, x, y, baseY: y, vy: 0, size: 1, phase: 0.3, top: false, gate: false, counted: false, ...extra };
 }
 
 type Scene = (ww: number) => GameState;
@@ -145,7 +145,9 @@ const SCENES: Record<string, Scene> = {
     for (let i = 0; i < 9; i++) {
       s.particles.push({ kind: 'puff', x: SNAIL_X - 14 - i * 3.2, y: 31 + i * 0.9, vx: 0, vy: 0, life: 0.45 - i * 0.045, maxLife: 0.45, size: 1, hue: 0 });
     }
-    s.popups.push({ kind: 'plus', x: SNAIL_X + 10, y: 38, life: 0.5 });
+    s.popups.push({ kind: 'plus', x: SNAIL_X + 10, y: 38, life: 0.5, value: 2 });
+    s.doubleTime = 6;
+    s.powerUps.push({ kind: 'magnet', x: SNAIL_X + 100, y: 30, phase: 0.2 });
     return s;
   },
   sunset: (ww) => {
@@ -160,7 +162,8 @@ const SCENES: Record<string, Scene> = {
     s.obstacles.push(obstacle('bird', SNAIL_X + 120, 30, { phase: 0.1 }));
     s.obstacles.push(obstacle('bird', SNAIL_X + 127, 24, { phase: 0.2 }));
     s.obstacles.push(obstacle('bird', SNAIL_X + 127, 36, { phase: 0.4 }));
-    s.popups.push({ kind: 'best', x: SNAIL_X + 6, y: 30, life: 1.2 });
+    s.popups.push({ kind: 'best', x: SNAIL_X + 6, y: 30, life: 1.2, value: 0 });
+    s.powerUps.push({ kind: 'shield', x: SNAIL_X + 98, y: 51, phase: 0.1 });
     for (let i = 0; i < 26; i++) {
       const a = (i / 26) * Math.PI * 2;
       s.particles.push({ kind: 'confetti', x: SNAIL_X + 6 + Math.cos(a) * (8 + (i % 5) * 3), y: 40 + Math.sin(a) * (8 + (i % 4) * 3), vx: 0, vy: 0, life: 1, maxLife: 1.4, size: 1, hue: i / 26 });
@@ -171,6 +174,9 @@ const SCENES: Record<string, Scene> = {
     const s = createGameState(ww, 600);
     const dist = DAY_CYCLE * 0.7;
     Object.assign(s, { phase: 'playing', snailY: 64, snailVY: -45, holding: true, time: 3.4, distance: dist, score: Math.floor(dist / UNITS_PER_POINT), coins: 112 });
+    s.shieldTime = 10;
+    s.magnetTime = 5;
+    s.powerUps.push({ kind: 'double', x: SNAIL_X + 112, y: 62, phase: 0.4 });
     s.obstacles.push(obstacle('drop', SNAIL_X + 34, 30, { vy: 70 }));
     s.obstacles.push(obstacle('drop', SNAIL_X + 43, 44, { vy: 70 }));
     s.obstacles.push(obstacle('drop', SNAIL_X + 52, 22, { vy: 70 }));

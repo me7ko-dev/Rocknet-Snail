@@ -13,10 +13,10 @@ import { scheduleOnRN, scheduleOnUI } from 'react-native-worklets';
 
 import { SNAIL_X, WORLD_HEIGHT } from './constants';
 import { drawGame, type GameFonts, type GameLabels, type ScreenLayout } from './draw';
-import { createGameState, pressDown, pressUp, stepGame, takeEvents, type GameEvent } from './engine';
+import { createGameState, pressDown, pressUp, snapshot, stepGame, takeEvents, type GameEvent, type RunSnapshot } from './engine';
 import type { SkinLook } from './skins';
 
-/** Events from the game engine, plus 'paused' (a snapshot of score and coins when pausing) */
+/** Events from the game engine, plus 'paused' (sent with a snapshot of the run when pausing) */
 export type CanvasEvent = GameEvent | 'paused';
 
 type Props = {
@@ -24,7 +24,7 @@ type Props = {
   bestScore: number;
   labels: GameLabels;
   paused: boolean;
-  onEvent: (event: CanvasEvent, score: number, coins: number) => void;
+  onEvent: (event: CanvasEvent, run: RunSnapshot) => void;
 };
 
 const clamp = (v: number, min: number, max: number) => Math.max(min, Math.min(max, v));
@@ -63,7 +63,7 @@ export function GameCanvas({ look, bestScore, labels, paused, onEvent }: Props) 
         'worklet';
         const s = state.value;
         pressUp(s);
-        scheduleOnRN(onEvent, 'paused', s.score, s.coins);
+        scheduleOnRN(onEvent, 'paused', snapshot(s));
       });
     }
   }, [paused, pausedSV, state, onEvent]);
@@ -77,8 +77,11 @@ export function GameCanvas({ look, bestScore, labels, paused, onEvent }: Props) 
     const s = state.value;
     stepGame(s, dt, worldWidthSV.value);
     const events = takeEvents(s);
-    for (let i = 0; i < events.length; i++) {
-      scheduleOnRN(onEvent, events[i], s.score, s.coins);
+    if (events.length > 0) {
+      const run = snapshot(s);
+      for (let i = 0; i < events.length; i++) {
+        scheduleOnRN(onEvent, events[i], run);
+      }
     }
     state.modify(); // tell the canvas that the state changed
   });

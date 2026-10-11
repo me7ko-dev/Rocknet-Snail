@@ -33,6 +33,8 @@ Hold your finger on the screen to fly up, let go to fall. Dodge birds, falling l
 
 • One-finger controls – easy to learn, hard to master
 • Fly from sunny day into a golden sunset and a starry night
+• Grab power-ups: a magnet for lettuce, a shield that saves you, double lettuce
+• New missions every day and achievements with lettuce rewards
 • Collect lettuce and unlock cute hats and colourful rockets
 • Beat your own record – a flag shows where your best flight ended
 • Happy music, sound effects and gentle vibrations
@@ -64,6 +66,8 @@ Hold your finger on the screen to fly up, let go to fall. Dodge birds, falling l
 
 • Управление с един пръст – лесно за научаване, трудно за овладяване
 • Полет от слънчев ден през златен залез до звездна нощ
+• Хващай бонуси: магнит за маруля, щит, който те спасява, двойна маруля
+• Нови задачи всеки ден и постижения с награди
 • Събирай маруля и отключвай сладки шапки и цветни ракети
 • Подобри рекорда си – флагче показва докъде си стигнал
 • Весела музика, звуци и леки вибрации
@@ -72,6 +76,24 @@ Hold your finger on the screen to fly up, let go to fall. Dodge birds, falling l
 • Не събира данни – напредъкът остава на устройството ти
 
 **Ключови думи (до 100):** охлюв,ракета,аркада,игра,летене,деца,градина,безкрайна,маруля,офлайн
+
+---
+
+## Какво ново (поле „What's New“ за версия 1.1.0)
+
+**English:**
+New in 1.1:
+• Power-ups! Grab a magnet, a shield or double lettuce while you fly
+• Daily missions – three new ones every day
+• Achievements with lettuce rewards
+• Small fixes and smoother play
+
+**Български:**
+Ново във версия 1.1:
+• Бонуси! Хващай магнит, щит или двойна маруля по време на полета
+• Задачи за деня – три нови всеки ден
+• Постижения с награди от маруля
+• Малки поправки и по-гладка игра
 
 ---
 

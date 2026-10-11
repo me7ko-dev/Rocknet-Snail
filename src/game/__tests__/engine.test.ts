@@ -36,7 +36,7 @@ function emptyRun(best = 0) {
 }
 
 function obstacle(extra: Partial<Obstacle>): Obstacle {
-  return { kind: 'bird', x: SNAIL_X, y: 50, baseY: 50, vy: 0, size: 1, phase: 0, top: false, ...extra };
+  return { kind: 'bird', x: SNAIL_X, y: 50, baseY: 50, vy: 0, size: 1, phase: 0, top: false, gate: false, counted: false, ...extra };
 }
 
 describe('snail physics', () => {
@@ -151,6 +151,72 @@ describe('hits and lettuce', () => {
   });
 });
 
+describe('power-ups', () => {
+  function withPower(kind: 'magnet' | 'shield' | 'double') {
+    const s = emptyRun();
+    s.powerIn = Number.POSITIVE_INFINITY;
+    s.powerUps.push({ kind, x: SNAIL_X + 1, y: s.snailY - 3, phase: 0 });
+    const events = run(s, 0.05);
+    expect(events).toContain('power');
+    expect(s.stats.powerups).toBe(1);
+    return s;
+  }
+
+  it('the shield takes one hit, then the next hit crashes', () => {
+    const s = withPower('shield');
+    expect(s.shieldTime).toBeGreaterThan(0);
+    s.obstacles.push(obstacle({ y: s.snailY - 3 }));
+    const events = run(s, 0.1);
+    expect(events).toContain('shieldBreak');
+    expect(events).not.toContain('crash');
+    expect(s.stats.shieldSaves).toBe(1);
+    expect(s.shieldTime).toBe(0);
+    // still blinking: safe
+    s.obstacles.push(obstacle({ y: s.snailY - 3 }));
+    run(s, 0.1);
+    expect(s.phase).toBe('playing');
+    // after the blinking: a hit counts again
+    run(s, 1.2);
+    s.obstacles.push(obstacle({ x: SNAIL_X, y: s.snailY - 3 }));
+    expect(run(s, 0.1)).toContain('crash');
+  });
+
+  it('double lettuce gives 2 per lettuce', () => {
+    const s = withPower('double');
+    s.lettuce.push({ x: SNAIL_X + 1, y: s.snailY - 3, phase: 0 });
+    run(s, 0.05);
+    expect(s.coins).toBe(2);
+  });
+
+  it('the magnet pulls lettuce that would otherwise be missed', () => {
+    const s = withPower('magnet');
+    s.lettuce.push({ x: SNAIL_X + 30, y: s.snailY - 3 - 25, phase: 0 });
+    run(s, 1);
+    expect(s.coins).toBe(1);
+  });
+
+  it('power-ups wear off', () => {
+    const s = withPower('magnet');
+    run(s, 9);
+    expect(s.magnetTime).toBe(0);
+  });
+
+  it('appear every now and then during a long flight', () => {
+    const s = createGameState(WORLD_WIDTH);
+    pressDown(s);
+    let seen = 0;
+    for (let t = 0; t < 60; t += DT) {
+      const before = s.powerUps.length;
+      stepGame(s, DT);
+      s.events.length = 0;
+      s.phase = 'playing';
+      s.safeTime = 1; // keep the test snail alive
+      if (s.powerUps.length > before) seen++;
+    }
+    expect(seen).toBeGreaterThanOrEqual(2);
+  });
+});
+
 describe('long random runs', () => {
   // A simple bot that tries to stay away from the nearest obstacle
   function bot(s: GameState) {
@@ -246,5 +312,14 @@ describe('long random runs', () => {
       }
     }
     expect(gatesSeen).toBeGreaterThan(0);
+  });
+
+  it('counts the hose gates the snail flies through', () => {
+    const s = emptyRun();
+    s.obstacles.push(obstacle({ kind: 'hose', x: SNAIL_X + 5, y: 70, size: 18, gate: true }));
+    s.snailY = 40;
+    s.safeTime = 10;
+    run(s, 0.5);
+    expect(s.stats.gates).toBe(1);
   });
 });

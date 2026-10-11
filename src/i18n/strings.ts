@@ -34,6 +34,31 @@ export const en = {
   totalLettuce: 'Lettuce collected',
   bestFlag: 'BEST',
   meters: 'm',
+  magnet: 'Magnet!',
+  shield: 'Shield!',
+  double: 'Double lettuce!',
+  missions: 'Missions',
+  daily: 'Today',
+  achievements: 'Achievements',
+  claim: 'Claim',
+  claimed: 'Done',
+  newMissionsDaily: 'New missions every day',
+  missionComplete: 'Mission complete!',
+  // {n} is replaced by a number
+  m_distance: 'Fly {n} m in one flight',
+  m_lettuceRun: 'Collect {n} lettuce in one flight',
+  m_lettuceDay: 'Collect {n} lettuce today',
+  m_flights: 'Fly {n} times today',
+  m_powerups: 'Pick up {n} power-ups',
+  m_gates: 'Fly through {n} hose gates',
+  m_shieldSaves: 'Let a shield save you ({n}×)',
+  a_best: 'Reach {n} m',
+  a_lettuce: 'Collect {n} lettuce in total',
+  a_flights: 'Fly {n} times in total',
+  a_powerups: 'Pick up {n} power-ups in total',
+  a_gates: 'Fly through {n} hose gates in total',
+  a_shieldSaves: 'Get saved by a shield ({n}×)',
+  a_items: 'Own {n} things from the shop',
 };
 
 export type Strings = Record<keyof typeof en, string>;
@@ -70,8 +95,37 @@ export const bg: Strings = {
   totalLettuce: 'Събрана маруля',
   bestFlag: 'РЕКОРД',
   meters: 'м',
+  magnet: 'Магнит!',
+  shield: 'Щит!',
+  double: 'Двойна маруля!',
+  missions: 'Задачи',
+  daily: 'За днес',
+  achievements: 'Постижения',
+  claim: 'Вземи',
+  claimed: 'Взето',
+  newMissionsDaily: 'Нови задачи всеки ден',
+  missionComplete: 'Изпълнена задача!',
+  m_distance: 'Прелети {n} м с един полет',
+  m_lettuceRun: 'Събери {n} маруля с един полет',
+  m_lettuceDay: 'Събери {n} маруля днес',
+  m_flights: 'Полети {n} пъти днес',
+  m_powerups: 'Хвани {n} бонуса',
+  m_gates: 'Мини през {n} врати от маркучи',
+  m_shieldSaves: 'Щитът да те спаси ({n}×)',
+  a_best: 'Стигни до {n} м',
+  a_lettuce: 'Събери общо {n} маруля',
+  a_flights: 'Полети общо {n} пъти',
+  a_powerups: 'Хвани общо {n} бонуса',
+  a_gates: 'Мини общо през {n} врати',
+  a_shieldSaves: 'Щитът да те спаси ({n}×)',
+  a_items: 'Притежавай {n} неща от магазина',
 };
 
 export const LANGUAGES = { en, bg } satisfies Record<string, Strings>;
 export type Lang = keyof typeof LANGUAGES;
+/** Puts a number into a text like 'Fly {n} m' */
+export function withNumber(text: string, n: number) {
+  return text.replace('{n}', String(n));
+}
+
 export const LANGUAGE_NAMES: Record<Lang, string> = { en: 'English', bg: 'Български' };
