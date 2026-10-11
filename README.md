@@ -26,7 +26,7 @@
 
 1. Инсталирай **Node.js** (https://nodejs.org → „LTS“).
 2. Инсталирай **Expo Go** на телефона (Google Play / App Store).
-3. Свали проекта (клона `claude/rocket-snail-mobile-game-s3z068`) и отвори терминал в папката.
+3. Свали проекта от https://github.com/me7ko-dev/Rocknet-Snail (зеленият бутон **Code → Download ZIP** или `git clone https://github.com/me7ko-dev/Rocknet-Snail.git`) и отвори терминал в папката.
 4. `npm install` (само първия път, 1–3 минути)
 5. `npx expo start`
 6. Сканирай QR кода: Android – от Expo Go → „Scan QR code“; iPhone – с камерата.
