@@ -5,7 +5,17 @@
 import { PaintStyle, Skia, StrokeCap, TileMode } from '@shopify/react-native-skia';
 import type { SkCanvas, SkFont, SkPaint } from '@shopify/react-native-skia';
 
-import { COLORS, DAY_CYCLE, DOUBLE_TIME, GROUND_Y, MAGNET_TIME, POWER_RADIUS, SHIELD_TIME, WORLD_HEIGHT } from './constants';
+import {
+  COLORS,
+  DAY_CYCLE,
+  DOUBLE_TIME,
+  GROUND_Y,
+  MAGNET_TIME,
+  POWER_RADIUS,
+  SHIELD_TIME,
+  SNAIL_SCALE,
+  WORLD_HEIGHT,
+} from './constants';
 import { snailAngle, type GameState, type Obstacle, type Particle, type PowerKind, type PowerUp } from './engine';
 import type { HatId, SkinLook } from './skins';
 
@@ -910,13 +920,18 @@ export function drawGame(
   } else if (s.phase === 'playing') {
     flame = s.holding ? 1 : 0.15;
   }
-  if (s.magnetTime > 0) drawMagnetAura(c, p, s.snailX, y, s.time);
+  // The snail and its auras are drawn at SNAIL_SCALE around the snail's position
+  c.save();
+  c.translate(s.snailX, y);
+  c.scale(SNAIL_SCALE, SNAIL_SCALE);
+  if (s.magnetTime > 0) drawMagnetAura(c, p, 0, 0, s.time);
   // right after the shield pops the snail blinks (and cannot be hit)
   const blinkHidden = s.safeTime > 0 && Math.floor(s.time * 14) % 2 === 0;
   if (!blinkHidden) {
-    drawSnail(c, p, s.snailX, y, snailAngle(s), s.time, flame, look, s.phase === 'crashing' || s.phase === 'over');
+    drawSnail(c, p, 0, 0, snailAngle(s), s.time, flame, look, s.phase === 'crashing' || s.phase === 'over');
   }
-  if (s.shieldTime > 0) drawShield(c, p, s.snailX, y, s.time, s.shieldTime);
+  if (s.shieldTime > 0) drawShield(c, p, 0, 0, s.time, s.shieldTime);
+  c.restore();
 
   for (let i = 0; i < s.particles.length; i++) {
     if (s.particles[i].kind !== 'puff') drawParticle(c, p, s.particles[i]);

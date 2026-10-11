@@ -25,7 +25,10 @@ import {
   POWER_RADIUS,
   SAFE_AFTER_SHIELD,
   SHIELD_TIME,
+  SNAIL_BELLY,
+  SNAIL_HIT_OFFSET,
   SNAIL_HIT_RADIUS,
+  SNAIL_SCALE,
   SNAIL_X,
   SPEED_GAIN,
   START_SPEED,
@@ -34,8 +37,8 @@ import {
 } from './constants';
 
 // The snail's hit circle centre can be anywhere between these heights
-const SAFE_TOP = CEILING_Y - 3;
-const SAFE_BOTTOM = GROUND_Y - 4.5 - 3;
+const SAFE_TOP = CEILING_Y - SNAIL_HIT_OFFSET;
+const SAFE_BOTTOM = GROUND_Y - SNAIL_BELLY - SNAIL_HIT_OFFSET;
 // How far (in units) the hit circle must stay from a hose nozzle end
 const HOSE_CLEARANCE = 9;
 // The safe band of the next hose must overlap the previous one by at least this much
@@ -274,15 +277,15 @@ function spawnPattern(s: GameState): { extra: number; hasLettuce: boolean } {
     const y = middle < 47 ? rand(Math.min(middle + 20, GROUND_Y - 12), GROUND_Y - 12) : rand(CEILING_Y, Math.max(middle - 20, CEILING_Y));
     addObstacle(s, 'bird', x, prevTop > SAFE_TOP || prevBottom < SAFE_BOTTOM ? y : rand(CEILING_Y, GROUND_Y - 12));
   } else if (pattern === 'leaf') {
-    addObstacle(s, 'leaf', x, rand(CEILING_Y + 6, GROUND_Y - 14), { size: rand(0.9, 1.25) });
+    addObstacle(s, 'leaf', x, rand(CEILING_Y + 6, GROUND_Y - 14), { size: rand(0.7, 1.0) });
   } else if (pattern === 'hose') {
     // hoses grow taller as the game speeds up, but always leave a way through
     // that connects with the way through the previous obstacle
-    const h = clamp(rand(22, 42 + d * 12), MIN_HOSE, groundMaxH);
+    const h = clamp(rand(16, 32 + d * 9), MIN_HOSE, groundMaxH);
     addObstacle(s, 'hose', x, GROUND_Y - h, { size: h, phase: 0 });
     s.safeBottom = GROUND_Y - h - HOSE_CLEARANCE;
   } else if (pattern === 'hangingHose') {
-    const h = clamp(rand(22, 38 + d * 10), MIN_HOSE, topMaxH);
+    const h = clamp(rand(16, 28 + d * 8), MIN_HOSE, topMaxH);
     addObstacle(s, 'hose', x, h, { size: h, phase: 0, top: true });
     s.safeTop = h + HOSE_CLEARANCE;
   } else if (pattern === 'gate') {
@@ -338,7 +341,7 @@ export function collides(snailX: number, snailY: number, o: Obstacle) {
   'worklet';
   // The snail's hit circle sits a bit above its belly (where the shell is)
   const sx = snailX;
-  const sy = snailY - 3;
+  const sy = snailY - SNAIL_HIT_OFFSET;
   if (o.kind === 'bird') return hitsCircle(sx, sy, o.x, o.y, 3.6);
   if (o.kind === 'leaf') return hitsCircle(sx, sy, o.x, o.y, 3.2 * o.size);
   if (o.kind === 'drop') return hitsCircle(sx, sy, o.x, o.y, 2);
@@ -440,7 +443,7 @@ function shieldSave(s: GameState, index: number) {
   s.safeTime = SAFE_AFTER_SHIELD;
   s.stats.shieldSaves += 1;
   s.shake = 0.15;
-  burst(s, 'star', o.x, o.kind === 'hose' ? s.snailY - 3 : o.y, 6, 30, 0.6);
+  burst(s, 'star', o.x, o.kind === 'hose' ? s.snailY - SNAIL_HIT_OFFSET : o.y, 6, 30, 0.6);
   burst(s, 'sparkle', s.snailX, s.snailY - 6, 12, 40, 0.5);
   s.obstacles.splice(index, 1);
   s.events.push('shieldBreak');
@@ -449,12 +452,12 @@ function shieldSave(s: GameState, index: number) {
 function emitPuff(s: GameState) {
   'worklet';
   if (s.particles.length > 90) return;
-  // Rocket nozzle position, turned together with the snail around its pivot (0, -3)
+  // Rocket nozzle position, turned together with the snail around its pivot (0, -SNAIL_HIT_OFFSET)
   const a = (snailAngle(s) * Math.PI) / 180;
-  const lx = -16;
-  const ly = -9;
+  const lx = -16 * SNAIL_SCALE;
+  const ly = -9 * SNAIL_SCALE;
   const x = s.snailX + lx * Math.cos(a) - ly * Math.sin(a);
-  const y = s.snailY - 3 + lx * Math.sin(a) + ly * Math.cos(a);
+  const y = s.snailY - SNAIL_HIT_OFFSET + lx * Math.sin(a) + ly * Math.cos(a);
   s.particles.push({
     kind: 'puff',
     x,
@@ -528,7 +531,7 @@ export function stepGame(s: GameState, dt: number, worldWidth = s.worldWidth): v
     s.snailY = CEILING_Y;
     s.snailVY = 0;
   }
-  const floor = GROUND_Y - 4.5; // belly touches the grass
+  const floor = GROUND_Y - SNAIL_BELLY; // belly touches the grass
   if (s.snailY > floor) {
     s.snailY = floor;
     s.snailVY = 0;
@@ -620,7 +623,7 @@ export function stepGame(s: GameState, dt: number, worldWidth = s.worldWidth): v
     p.phase += dt;
     if (p.x < -10) {
       s.powerUps.splice(i, 1);
-    } else if (hitsCircle(s.snailX, s.snailY - 3, p.x, p.y, POWER_RADIUS)) {
+    } else if (hitsCircle(s.snailX, s.snailY - SNAIL_HIT_OFFSET, p.x, p.y, POWER_RADIUS)) {
       s.powerUps.splice(i, 1);
       collectPowerUp(s, p);
     }
@@ -634,7 +637,7 @@ export function stepGame(s: GameState, dt: number, worldWidth = s.worldWidth): v
     if (s.magnetTime > 0) {
       // the magnet pulls nearby lettuce towards the snail
       const dx = s.snailX - l.x;
-      const dy = s.snailY - 3 - l.y;
+      const dy = s.snailY - SNAIL_HIT_OFFSET - l.y;
       const dist = Math.sqrt(dx * dx + dy * dy);
       if (dist < MAGNET_RANGE && dist > 0.01) {
         const pull = Math.min(dist, (60 + s.speed) * dt);
@@ -646,7 +649,7 @@ export function stepGame(s: GameState, dt: number, worldWidth = s.worldWidth): v
       s.lettuce.splice(i, 1);
       continue;
     }
-    if (hitsCircle(s.snailX, s.snailY - 3, l.x, l.y, LETTUCE_RADIUS + 1)) {
+    if (hitsCircle(s.snailX, s.snailY - SNAIL_HIT_OFFSET, l.x, l.y, LETTUCE_RADIUS + 1)) {
       s.lettuce.splice(i, 1);
       const value = s.doubleTime > 0 ? 2 : 1;
       s.coins += value;

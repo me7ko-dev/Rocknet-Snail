@@ -42,3 +42,6 @@ yarn-error.*
 
 # asset previews (npm run assets -- preview)
 preview-out/
+
+# Skia for the web (copied by "npm run web")
+public/canvaskit.wasm

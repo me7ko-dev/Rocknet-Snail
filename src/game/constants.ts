@@ -8,7 +8,10 @@ export const CEILING_Y = 14; // the snail can't fly higher than this
 
 // Snail
 export const SNAIL_X = 22;
-export const SNAIL_HIT_RADIUS = 5;
+export const SNAIL_SCALE = 0.7; // how big the snail is drawn in the game (1 = original size)
+export const SNAIL_HIT_RADIUS = 5 * SNAIL_SCALE;
+export const SNAIL_HIT_OFFSET = 3 * SNAIL_SCALE; // the hit circle sits this far above the snail's origin
+export const SNAIL_BELLY = 4.5 * SNAIL_SCALE; // from the snail's origin down to its belly
 export const GRAVITY = 260; // units / s² pulling down
 export const THRUST = 560; // units / s² pushing up while the finger is held
 export const MAX_RISE_SPEED = 75;
@@ -23,7 +26,7 @@ export const UNITS_PER_POINT = 5; // 1 point ("metre") = 5 units travelled
 // Spawning
 export const GAP_EASY = 70; // distance between obstacles at the start
 export const GAP_HARD = 40; // distance between obstacles at top speed
-export const GATE_OPENING = 34; // free space between the two hoses of a "gate"
+export const GATE_OPENING = 40; // free space between the two hoses of a "gate"
 export const LETTUCE_CHANCE = 0.55; // chance of a row of lettuce between obstacles
 export const LETTUCE_RADIUS = 3;
 export const DROP_FALL_SPEED = 70;
