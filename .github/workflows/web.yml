@@ -1,0 +1,45 @@
+# Web version on GitHub Pages: builds the game for the browser on every push to main
+# and puts it on the gh-pages branch (Settings → Pages → Deploy from a branch → gh-pages).
+name: Web
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: web
+  cancel-in-progress: true
+
+jobs:
+  web:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - name: Build for the browser
+        run: |
+          npx setup-skia-web public
+          npx expo export --platform web --output-dir dist
+          touch dist/.nojekyll   # otherwise GitHub Pages hides the _expo folder
+
+      - name: Publish to gh-pages
+        run: |
+          cd dist
+          git init -q -b gh-pages
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -qm "Web version from ${GITHUB_SHA::7}"
+          git push -f "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${GITHUB_REPOSITORY}.git" gh-pages

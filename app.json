@@ -62,6 +62,9 @@
       ],
       "expo-font",
       "expo-screen-orientation"
-    ]
+    ],
+    "experiments": {
+      "baseUrl": "/Rocknet-Snail"
+    }
   }
 }
